@@ -1,16 +1,18 @@
 #!/bin/sh
-
+ENV_FILE="~/openwrt2ha/.wifi-mqtt-control.env"
 # Carrega la configuració des del fitxer .env si existeix
-if [ -f ~/.wifi-mqtt-control.env ]; then
-  . ~/.wifi-mqtt-control.env
+if [ -f $ENV_FILE ]; then
+  . $ENV_FILE
+  log_message "Loaded env: $ENV_FILE" 	 
 else
   # Configuració per defecte si no hi ha fitxer .env
+  log_message "Default config"
   MQTT_HOST="localhost"
   MQTT_PORT="1883"
   MQTT_USER=""
   MQTT_PASS=""
 fi
-
+log_message "Connection host: $MQTT_HOST:$MQTT_PORT"
 LOG_FILE="/tmp/wifi-mqtt.log"
 DEBUG_MODE=0
 
@@ -63,6 +65,7 @@ setup_discovery_for_network() {
     local status=$3
     
     # Formatem l'SSID per a ser utilitzat en rutes MQTT (substituïm espais i caràcters especials)
+    log_message "SSID: $ssid"
     local ssid_formatted=$(echo "$ssid" | tr ' ' '_' | tr -c '[:alnum:]_' '_')
     
     # Configurem el tema de descoberta
