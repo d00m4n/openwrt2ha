@@ -1,7 +1,7 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.9"
+VERSION="1.0.11"
 LOG_FILE="/tmp/wifi-mqtt.log"
 
 # Mostra el títol del script
@@ -21,7 +21,16 @@ printf '%s%s%s\n' "$left_padding" "$title" "$right_padding"
 about() {
     local cols=80
     local version=$1
-    local year="2025"
+    local start_year="2024"
+    local current_year=$(date +%Y)
+    local copyright_years=""
+    
+    # Set copyright years format
+    if [ "$start_year" = "$current_year" ]; then
+        copyright_years="$start_year"
+    else
+        copyright_years="$start_year - $current_year"
+    fi
     
     # Try to get terminal width
     if command -v stty >/dev/null 2>&1; then
@@ -52,7 +61,7 @@ about() {
     echo "devices into your smart home ecosystem."
     echo ""
     echo "Version: $version"
-    echo "© $year dr_d00m4n"
+    echo "© $copyright_years dr_d00m4n"
     echo "All Rights Reserved"
     echo ""
     echo "ADDITIONAL INFORMATION:"
