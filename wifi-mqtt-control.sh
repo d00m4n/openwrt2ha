@@ -1,4 +1,32 @@
 #!/bin/sh
+
+DEBUG_MODE=0
+VERSION="1.0.1"
+
+#Comprovem si s'ha passat el paràmetre --version
+if [ "$1" = "--version" ]; then
+    echo "wifi-mqtt-control v$VERSION"
+    exit
+fi
+
+# Comprovem si s'ha passat el paràmetre --debug
+if [ "$1" = "--debug" ]; then
+    DEBUG_MODE=1
+fi
+# Funció per registrar missatges
+log_message() {
+    message="$(date '+%Y-%m-%d %H:%M:%S') - $1"
+    
+    if [ $DEBUG_MODE -eq 1 ]; then
+        # En mode debug, mostrem per pantalla i escrivim al fitxer
+        echo "$message" | tee -a "$LOG_FILE"
+    else
+        # En mode normal, només escrivim al fitxer
+        echo "$message" >> "$LOG_FILE"
+    fi
+}
+log_message "Iniciant script..."
+exit 0
 ENV_FILE="~/openwrt2ha/.wifi-mqtt-control.env"
 # Carrega la configuració des del fitxer .env si existeix
 if [ -f $ENV_FILE ]; then
@@ -14,7 +42,6 @@ else
 fi
 log_message "Connection host: $MQTT_HOST:$MQTT_PORT"
 LOG_FILE="/tmp/wifi-mqtt.log"
-DEBUG_MODE=0
 
 # Obté la descripció del dispositiu de la configuració de samba
 DEVICE_DESCRIPTION=$(uci get samba4.@samba[0].description 2>/dev/null || echo "OpenWRT")
@@ -25,23 +52,9 @@ DEVICE_FORMATTED=$(echo "$DEVICE_DESCRIPTION" | tr '[a-z]' '[A-Z]' | tr -d '-')
 MQTT_BASE="homeassistant"
 MQTT_DEVICE_BASE="openwrt/$DEVICE_FORMATTED"
 
-# Comprovem si s'ha passat el paràmetre --debug
-if [ "$1" = "--debug" ]; then
-    DEBUG_MODE=1
-fi
 
-# Funció per registrar missatges
-log_message() {
-    message="$(date '+%Y-%m-%d %H:%M:%S') - $1"
-    
-    if [ $DEBUG_MODE -eq 1 ]; then
-        # En mode debug, mostrem per pantalla i escrivim al fitxer
-        echo "$message" | tee -a "$LOG_FILE"
-    else
-        # En mode normal, només escrivim al fitxer
-        echo "$message" >> "$LOG_FILE"
-    fi
-}
+
+
 
 # Funció per publicar missatges MQTT
 publish_mqtt() {
