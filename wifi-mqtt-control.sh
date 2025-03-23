@@ -1,22 +1,82 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.2"
+VERSION="1.0.9"
 LOG_FILE="/tmp/wifi-mqtt.log"
 
 # Mostra el títol del script
 clear
+# Show the title of the script
+header () {
 title="-| OPENWRT2HA v$VERSION |-"
 cols=80  # Amplada fixa
 padding=$(( (cols - ${#title}) / 2 ))
 left_padding=$(printf '%*s' "$padding" | tr ' ' '-')
 right_padding=$(printf '%*s' $(( cols - padding - ${#title} )) | tr ' ' '-')
 printf '%s%s%s\n' "$left_padding" "$title" "$right_padding"
+}
 
+
+# Mostra la informació sobre el script
+about() {
+    local cols=80
+    local version=$1
+    local year="2025"
+    
+    # Try to get terminal width
+    if command -v stty >/dev/null 2>&1; then
+        cols=$(stty size 2>/dev/null | cut -d' ' -f2)
+        [ -z "$cols" ] && cols=80
+    fi
+    
+    # Create the separator line
+    local separator=$(printf '%*s' "$cols" | tr ' ' '-')
+    
+
+    # Center the title
+    # local title="ABOUT OPENWRT2HA"
+    # local padding=$(( (cols - ${#title}) / 2 ))
+    # local centered_title=$(printf '%*s%s%*s' "$padding" "" "$title" "$padding" "")
+    
+    # Print header
+    echo "$separator"
+    header
+    echo "$separator"
+    echo ""
+    echo "This tool was developed by dr_d00m4n"
+    echo "with assistance from Claude AI."
+    echo ""
+    echo "It provides a bridge between OpenWrt"
+    echo "and Home Assistant, allowing for"
+    echo "seamless integration of network"
+    echo "devices into your smart home ecosystem."
+    echo ""
+    echo "Version: $version"
+    echo "© $year dr_d00m4n"
+    echo "All Rights Reserved"
+    echo ""
+    echo "ADDITIONAL INFORMATION:"
+    echo "- GitHub: https://github.com/dr_d00m4n/openwrt2ha"
+    echo "- License: MIT"
+    echo "- Dependencies: ash, curl, ubus"
+    echo ""
+    echo "COMPONENT: $1"
+    echo "- Status: Active"
+    echo "- Last updated: $(date +%Y-%m-%d)"
+    echo "$separator"
+    exit 0
+}
+# Comprovem si s'ha passat el paràmetre --about
+if [ "$1" = "--about" ]; then
+    about $VERSION
+fi
 # Comprovem si s'ha passat el paràmetre --debug
 if [ "$1" = "--debug" ]; then
     DEBUG_MODE=1
 fi
+
+# Mostra el títol
+header
 # Funció per registrar missatges
 log_message() {
     message="$(date '+%Y-%m-%d %H:%M:%S') - $1"
@@ -31,7 +91,7 @@ log_message() {
 }
 
 # Carrega la configuració des del fitxer .env si existeix
-ENV_FILE="~/openwrt2ha/.wifi-mqtt-control.env"
+ENV_FILE=~/openwrt2ha/.wifi-mqtt-control.env
 if [ -f $ENV_FILE ]; then
   . $ENV_FILE
   log_message "Loaded env: $ENV_FILE" 	 
