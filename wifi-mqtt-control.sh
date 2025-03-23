@@ -1,13 +1,17 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.1"
+VERSION="1.0.2"
+LOG_FILE="/tmp/wifi-mqtt.log"
 
-#Comprovem si s'ha passat el paràmetre --version
-if [ "$1" = "--version" ]; then
-    echo "wifi-mqtt-control v$VERSION"
-    exit
-fi
+# Mostra el títol del script
+clear
+title="-| OPENWRT2HA v$VERSION |-"
+cols=80  # Amplada fixa
+padding=$(( (cols - ${#title}) / 2 ))
+left_padding=$(printf '%*s' "$padding" | tr ' ' '-')
+right_padding=$(printf '%*s' $(( cols - padding - ${#title} )) | tr ' ' '-')
+printf '%s%s%s\n' "$left_padding" "$title" "$right_padding"
 
 # Comprovem si s'ha passat el paràmetre --debug
 if [ "$1" = "--debug" ]; then
@@ -25,10 +29,9 @@ log_message() {
         echo "$message" >> "$LOG_FILE"
     fi
 }
-log_message "Iniciant script..."
-exit 0
-ENV_FILE="~/openwrt2ha/.wifi-mqtt-control.env"
+
 # Carrega la configuració des del fitxer .env si existeix
+ENV_FILE="~/openwrt2ha/.wifi-mqtt-control.env"
 if [ -f $ENV_FILE ]; then
   . $ENV_FILE
   log_message "Loaded env: $ENV_FILE" 	 
@@ -41,7 +44,7 @@ else
   MQTT_PASS=""
 fi
 log_message "Connection host: $MQTT_HOST:$MQTT_PORT"
-LOG_FILE="/tmp/wifi-mqtt.log"
+
 
 # Obté la descripció del dispositiu de la configuració de samba
 DEVICE_DESCRIPTION=$(uci get samba4.@samba[0].description 2>/dev/null || echo "OpenWRT")
