@@ -1,8 +1,11 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.79"
-LOG_FILE="/tmp/wifi-mqtt.log"
+VERSION="1.0.82"
+# Get day of the week
+DAY_OF_WEEK=$(date +%u)
+LOG_FILE="/var/log/openwrt2ha-${DAY_OF_WEEK}.log"
+
 
 # Display the script title
 clear
@@ -101,9 +104,9 @@ log_message() {
         echo "$message" >> "$LOG_FILE"
     fi
 }
-
+log_message "Log file: $LOG_FILE"
 # Load configuration from .env file if it exists
-ENV_FILE=~/openwrt2ha/.wifi-mqtt-control.env
+ENV_FILE=/etc/openwrt2ha/openwrt2ha.env
 if [ -f $ENV_FILE ]; then
   . $ENV_FILE
   log_message "Loaded env: $ENV_FILE" 	 
