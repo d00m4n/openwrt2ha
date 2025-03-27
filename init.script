@@ -1,0 +1,77 @@
+
+START=99
+STOP=10
+USE_PROCD=1
+PROG="openwrt2ha"
+SCRIPT="/usr/bin/openwrt2ha/openwrt2ha.sh"
+PID_FILE="/var/run/$PROG.pid"
+
+start_service() {
+    # Open a new procd instance
+    procd_open_instance
+
+    # Set the main command to execute
+    procd_set_param command $SCRIPT
+
+    # Redirect stdout and stderr for logging
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+
+    # Enable automatic restart in case of failure
+    procd_set_param respawn
+
+    # Close the instance configuration
+    procd_close_instance
+
+    # Verify if the process started successfully
+    sleep 1
+    if ! pgrep -f "$SCRIPT" > /dev/null; then
+        echo "Error: The service did not start correctly."
+        exit 1
+    fi
+}
+
+stop_service() {
+    # Stop the service using procd
+    procd_kill
+
+    # Manually remove the PID file if it exists
+    if [ -f "$PID_FILE" ]; then
+        rm -f "$PID_FILE"
+    fi
+}
+
+service_running() {
+    # Check if the process is active
+    if pgrep -f "$SCRIPT" > /dev/null; then
+        echo "Running"
+        return 0
+    else
+        echo "Stopped"
+        return 1
+    fi
+}
+
+case "$1" in
+    start)
+        echo "Starting service $PROG..."
+        start_service
+        ;;
+    stop)
+        echo "Stopping service $PROG..."
+        stop_service
+        ;;
+    status)
+        service_running
+        ;;
+    restart)
+        echo "Restarting service $PROG..."
+        stop_service
+        sleep 1
+        start_service
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status|restart}"
+        exit 1
+        ;;
+esac

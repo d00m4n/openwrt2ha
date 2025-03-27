@@ -1,12 +1,14 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.82"
+VERSION="1.0.86"
+PID_FILE="/var/run/openwrt2ha.pid"
 # Get day of the week
 DAY_OF_WEEK=$(date +%u)
-LOG_FILE="/var/log/openwrt2ha-${DAY_OF_WEEK}.log"
-
-
+LOG_FILE="/var/log/openwrt2ha/openwrt2ha-${DAY_OF_WEEK}.log"
+ENV_FILE=/etc/openwrt2ha/.openwrt2ha.env
+# timeout in seconds
+MSG_TIMEOUT=5
 # Display the script title
 clear
 # Show the title of the script
@@ -106,7 +108,7 @@ log_message() {
 }
 log_message "Log file: $LOG_FILE"
 # Load configuration from .env file if it exists
-ENV_FILE=/etc/openwrt2ha/openwrt2ha.env
+
 if [ -f $ENV_FILE ]; then
   . $ENV_FILE
   log_message "Loaded env: $ENV_FILE" 	 
@@ -138,13 +140,35 @@ publish_mqtt() {
     local topic=$1
     local message=$2
     local retain=$3
-    
     if [ "$retain" = "retain" ]; then
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" -r
+        $MSG_TIMEOUT mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" -r 2>&1
+         local result=$?
     else
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message"
+        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" 2>&1
+        local result=$?
     fi
-    
+    case $result in
+        0) : ;;
+        127)
+        DEBUG_MODE=1
+        log_message "Bad configuration"
+        exit $result
+        ;;
+        124) 
+        DEBUG_MODE=1
+        log_message "✗ Error: Timeout $timeout_segons segons"
+        DEBUG_MODE=0
+        exit $result
+         ;;
+        *) 
+        DEBUG_MODE=1
+        log_message "✗ Error (Code: $result)"
+        DEBUG_MODE=0
+        exit $result
+
+      # Pots afegir més comprovacions específiques aquí
+      ;;
+  esac
     # log_message "Published to $topic: $message"
 }
 
@@ -388,11 +412,15 @@ setup_exit_handler() {
         log_message "Script terminating..."
         # Publish offline status
         publish_mqtt "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/status" "offline" "retain"
+        # Remove PID file
+        if [ -f "$PID_FILE" ]; then
+             rm -f "$PID_FILE"
+        fi
         log_message "Script terminated"
     }
     
     # Set up trap for EXIT signal
-    trap cleanup EXIT
+    trap cleanup EXIT TERM INT
 }
 
 # Main function
