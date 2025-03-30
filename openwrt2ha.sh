@@ -1,7 +1,7 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.86"
+VERSION="1.0.92"
 PID_FILE="/var/run/openwrt2ha.pid"
 # Get day of the week
 DAY_OF_WEEK=$(date +%u)
@@ -9,6 +9,29 @@ LOG_FILE="/var/log/openwrt2ha/openwrt2ha-${DAY_OF_WEEK}.log"
 ENV_FILE=/etc/openwrt2ha/.openwrt2ha.env
 # timeout in seconds
 MSG_TIMEOUT=5
+# ----------------| command line arguments |----------------
+# Check if --about parameter was passed
+if [ "$1" = "--about" ]; then
+    about $VERSION
+fi
+# Check if --debug parameter was passed
+if [ "$1" = "--debug" ]; then
+    DEBUG_MODE=1
+fi
+# ----------------| Logger funtion |----------------
+
+log_message() {
+    message="$(date '+%Y-%m-%d %H:%M:%S') - $1"
+    
+    if [ $DEBUG_MODE -eq 1 ]; then
+        # In debug mode, show on screen and write to file
+        echo "$message" | tee -a "$LOG_FILE"
+    else
+        # In normal mode, only write to file
+        echo "$message" >> "$LOG_FILE"
+    fi
+}
+log_message "Log file: $LOG_FILE"
 # Display the script title
 clear
 # Show the title of the script
@@ -18,7 +41,7 @@ header () {
     padding=$(( (cols - ${#title}) / 2 ))
     left_padding=$(printf '%*s' "$padding" | tr ' ' '-')
     right_padding=$(printf '%*s' $(( cols - padding - ${#title} )) | tr ' ' '-')
-    printf '%s%s%s\n' "$left_padding" "$title" "$right_padding"
+    log_message '%s%s%s\n' "$left_padding" "$title" "$right_padding"
 }
 
 # Show information about the script
@@ -82,30 +105,28 @@ format_ssid() {
     formatted=$(echo "$formatted" | sed 's/_*$//')
     echo "$formatted"
 }
+check_host_ping() {
+    local host="$1"
+    local count="${2:-3}"    # Nombre d'intents (valor per defecte: 3)
+    local timeout="${3:-2}"  # Timeout en segons (valor per defecte: 2)
+    
+    log_message "Checking connection to $host..."
+    
+    # Intentem fer ping a l'host
+    if ping -c "$count" -W "$timeout" "$host" > /dev/null 2>&1; then
+        log_message "✓ $host ok"
+        return 0
+    else
+        log_message "✗ Error: no response from $host"
+        return 1
+    fi
+}
 
-# Check if --about parameter was passed
-if [ "$1" = "--about" ]; then
-    about $VERSION
-fi
-# Check if --debug parameter was passed
-if [ "$1" = "--debug" ]; then
-    DEBUG_MODE=1
-fi
 
 # Show the title
 header
 # Function to log messages
-log_message() {
-    message="$(date '+%Y-%m-%d %H:%M:%S') - $1"
-    
-    if [ $DEBUG_MODE -eq 1 ]; then
-        # In debug mode, show on screen and write to file
-        echo "$message" | tee -a "$LOG_FILE"
-    else
-        # In normal mode, only write to file
-        echo "$message" >> "$LOG_FILE"
-    fi
-}
+
 log_message "Log file: $LOG_FILE"
 # Load configuration from .env file if it exists
 
@@ -122,6 +143,7 @@ else
   HA_NAME=""
 fi
 log_message "Connection host: $MQTT_HOST:$MQTT_PORT"
+check_host_ping $MQTT_HOST 1 1
 
 # Get device description from samba configuration
 DEVICE_DESCRIPTION=$(uci get samba4.@samba[0].description 2>/dev/null || echo "OpenWRT")
@@ -141,12 +163,13 @@ publish_mqtt() {
     local message=$2
     local retain=$3
     if [ "$retain" = "retain" ]; then
-        $MSG_TIMEOUT mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" -r 2>&1
+        timeout $MSG_TIMEOUT mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" -r 2>&1
          local result=$?
     else
         mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" 2>&1
         local result=$?
     fi
+    
     case $result in
         0) : ;;
         127)
