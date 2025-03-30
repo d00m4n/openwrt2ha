@@ -1,5 +1,5 @@
 #!/bin/sh
-VERSION="1.0.15"
+VERSION="1.0.18"
 # Setup script for OpenWrt2HA
 # This script installs the program as a service that starts automatically
 
@@ -13,6 +13,8 @@ CONFIG_DIR="/etc/openwrt2ha"
 ENV_FILE=".${SERVICE_NAME}.env"
 INITD_PATH="/etc/init.d/${SERVICE_NAME}"
 LOG_PATH="/var/log/${SERVICE_NAME}"
+log_message "Creating ${LOG_PATH}..."
+mkdir -p "${LOG_PATH}"
 
 
 
@@ -35,8 +37,6 @@ log_message "Creating ${SCRIPT_PATH}..."
 mkdir -p "${SCRIPT_PATH}"
 log_message "Creating ${CONFIG_DIR}..."
 mkdir -p "${CONFIG_DIR}"
-log_message "Creating ${LOG_PATH}..."
-mkdir -p "${LOG_PATH}"
 
 # Copy the script to the destination location
 log_message "Copying script to ${SCRIPT_PATH}/${SCRIPT_NAME}..."
@@ -155,7 +155,6 @@ fi
 # List installations
 log_message "Installation summary:"
 log_message "- Main script: ${SCRIPT_PATH}/${SCRIPT_NAME}"
-log_message "- Symbolic link: /usr/bin/${SERVICE_NAME}"
 log_message "- Configuration file: ${CONFIG_DIR}/${ENV_FILE}"
 log_message "- Startup script: ${INITD_PATH}"
 

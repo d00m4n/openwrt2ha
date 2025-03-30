@@ -1,7 +1,7 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.92"
+VERSION="1.0.99"
 PID_FILE="/var/run/openwrt2ha.pid"
 # Get day of the week
 DAY_OF_WEEK=$(date +%u)
@@ -48,7 +48,7 @@ header () {
 about() {
     local cols=80
     local version=$1
-    local start_year="2024"
+    local start_year="2025"
     local current_year=$(date +%Y)
     local copyright_years=""
     
@@ -157,7 +157,7 @@ log_message "HA_NAME: $HA_NAME"
 log_message "MQTT_BASE: $MQTT_BASE"
 
 
-# Function to publish MQTT messages
+# Versió neta optimitzada per a publicació MQTT
 publish_mqtt() {
     local topic=$1
     local message=$2
@@ -166,7 +166,7 @@ publish_mqtt() {
         timeout $MSG_TIMEOUT mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" -r 2>&1
          local result=$?
     else
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" 2>&1
+        timeout $MSG_TIMEOUT mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$topic" -m "$message" 2>&1
         local result=$?
     fi
     
@@ -188,11 +188,8 @@ publish_mqtt() {
         log_message "✗ Error (Code: $result)"
         DEBUG_MODE=0
         exit $result
-
-      # Pots afegir més comprovacions específiques aquí
       ;;
   esac
-    # log_message "Published to $topic: $message"
 }
 
 # Function to set up Home Assistant discovery for a WiFi network
@@ -202,22 +199,17 @@ setup_discovery_for_network() {
     local status=$3
     
     # Format the SSID for use in MQTT routes (replace spaces and special characters)
-    log_message "SSID: $ssid"
     # Utilitzem la funció format_ssid per assegurar consistència
     local ssid_formatted=$(format_ssid "$ssid")
-    log_message "Formatted SSID: $ssid_formatted"
     
     # Configure the discovery topic
     local discovery_topic="${MQTT_BASE}/switch/${DEVICE_FORMATTED}/${DEVICE_FORMATTED}_${ssid_formatted}/config"
-    log_message "Discovery topic: $discovery_topic"
-    log_message "Status: $status"
     
     # Convert status from "on"/"off" to "ON"/"OFF" for Home Assistant
     local ha_status="OFF"
     if [ "$status" = "on" ]; then
         ha_status="ON"
     fi
-    log_message "Estat formatejat per a HA: $ha_status"
     
     # Create the JSON payload for Home Assistant
     local discovery_payload='{
@@ -241,19 +233,55 @@ setup_discovery_for_network() {
     
     # Publish the discovery configuration
     publish_mqtt "$discovery_topic" "$discovery_payload" "retain"
-    log_message "Published discovery config to $discovery_topic"
     
     # Publish initial state for this network
-    log_message "Publishing initial state for $ssid"
     publish_mqtt "${MQTT_BASE}/sensor/${DEVICE_FORMATTED}/availability" "online" "retain"
-    log_message "Publishing state to: ${MQTT_BASE}/switch/${DEVICE_FORMATTED}/${DEVICE_FORMATTED}_${ssid_formatted}/state with value: $ha_status"
     publish_mqtt "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/${DEVICE_FORMATTED}_${ssid_formatted}/state" "$ha_status" "retain"
+}
+
+# Funció per configurar el descobriment per al botó de reinici
+# Funció per configurar el descobriment per al botó de reinici
+setup_discovery_for_reboot_button() {
+    # Identificador únic per al botó de reinici
+    local button_id="reboot"
+    
+    # Configurem el tòpic de descobriment
+    local discovery_topic="${MQTT_BASE}/button/${DEVICE_FORMATTED}/${DEVICE_FORMATTED}_${button_id}/config"
+    
+    # Creem el payload JSON per a Home Assistant
+    local discovery_payload='{
+        "name": "Reboot '${HA_NAME}'",
+        "command_topic": "'${MQTT_BASE}'/button/'${DEVICE_FORMATTED}'/'${DEVICE_FORMATTED}_${button_id}'/set",
+        "payload_press": "REBOOT",
+        "device_class": "restart",
+        "entity_category": "config",
+        "unique_id": "'${DEVICE_FORMATTED}'_'${button_id}'_button",
+        "device": {
+            "identifiers": ["'$DEVICE_FORMATTED'"],
+            "name": "'$HA_NAME'-'$VERSION'",
+            "model": "OpenWRT Control",
+            "manufacturer": "OpenWRT"
+        }
+    }'
+    
+    # Publiquem la configuració de descobriment
+    publish_mqtt "$discovery_topic" "$discovery_payload" "retain"
+}
+
+# Funció per reiniciar el dispositiu OpenWRT
+reboot_device() {
+    # Publiquem un missatge de notificació abans de reiniciar
+    publish_mqtt "${MQTT_BASE}/sensor/${DEVICE_FORMATTED}/reboot_status" "Reiniciant..." "retain"
+    
+    # Esperem 2 segons perquè el missatge es publiqui abans de reiniciar
+    sleep 2
+    
+    # Executem el comandament de reinici
+    reboot
 }
 
 # Function to publish the status of all WiFi networks
 publish_wifi_status() {
-    log_message "Publishing status of all WiFi networks..."
-    
     # Publish availability status for the device group
     publish_mqtt "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/status" "online" "retain"
     
@@ -274,17 +302,14 @@ publish_wifi_status() {
         # Determine status
         if [ "$disabled" = "1" ]; then
             status="off"
-            log_message "Interface ${iface} is disabled ($disabled) → status: $status"
         else
             status="on"
-            log_message "Interface ${iface} is enabled ($disabled) → status: $status"
         fi
         
         # Format SSID for the unique identifier - consistent formatting
         ssid_formatted=$(format_ssid "$ssid")
         # Create a unique identifier for this network
         unique_id="${DEVICE_FORMATTED}_${ssid_formatted}"
-        log_message "Unique ID: $unique_id"
 
         # Add to the list
         if [ -z "$network_list" ]; then
@@ -295,9 +320,10 @@ publish_wifi_status() {
         
         # Configure discovery for this WiFi network
         setup_discovery_for_network "$ssid" "$device" "$status"
-        
-        log_message "WiFi $ssid ($device) is $status with ID: $unique_id"
     done
+    
+    # Configurem el botó de reinici
+    setup_discovery_for_reboot_button
     
     # Publish the complete list to the networks topic
     publish_mqtt "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/networks" "$network_list" "retain"
@@ -315,6 +341,14 @@ process_message() {
     fi
     
     # log_message "Processing message: '$message' from topic: '$topic'"
+    
+    # Comprovem si és una comanda per al botó de reinici
+    if echo "$topic" | grep -q "^${MQTT_BASE}/button/${DEVICE_FORMATTED}/${DEVICE_FORMATTED}_reboot/set$"; then
+        if [ "$message" = "REBOOT" ]; then
+            reboot_device
+        fi
+        return
+    fi
     
     # Expressió regular millorada que funciona amb la nova subscripció
     if echo "$topic" | grep -q "^${MQTT_BASE}/switch/${DEVICE_FORMATTED}/${DEVICE_FORMATTED}_[^/]*/set$"; then
@@ -462,33 +496,37 @@ main() {
     
     # Patró de subscripció millorat per capturar correctament els missatges
     # Usem patró de nivell MQTT (+ substitueix un nivell SENCER del tòpic)
-    subscription_pattern="${MQTT_BASE}/switch/${DEVICE_FORMATTED}/+/set"
-    log_message "-| OPENWRT2HA v$VERSION |-"
-    log_message "Waiting for MQTT messages on topic $subscription_pattern"
+    switch_subscription="${MQTT_BASE}/switch/${DEVICE_FORMATTED}/+/set"
+    button_subscription="${MQTT_BASE}/button/${DEVICE_FORMATTED}/+/set"
     
     # Subscribe to control topics and wait for messages
-    mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" -t "$subscription_pattern" -v | while read -r line; do
-        # Depuració del missatge complet rebut
-        log_message "Raw MQTT message: '$line'"
-        
+    mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASS" \
+                  -t "$switch_subscription" -t "$button_subscription" -v | while read -r line; do
         # Utilitzem awk per dividir correctament pel primer espai
-        # Això és més segur que utilitzar operadors de bash
         topic=$(echo "$line" | awk '{print $1}')
         message=$(echo "$line" | awk '{$1=""; print substr($0,2)}')
         
-        # Comprovació addicional dels valors
-        # log_message "Parsed Topic='$topic', Message='$message'"
-        
-        # Només processem el missatge si és vàlid (ON o OFF)
-        if echo "$message" | grep -q -E "^(ON|OFF)$"; then
-            # log_message "Valid action detected: '$message'"
-            process_message "$topic" "$message"
-        else
-            # log_message "Invalid message format: '$message' - Expected ON or OFF"
-            # Identifiquem el device ID per enviar l'error
-            if echo "$topic" | grep -q "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/"; then
-                network_id=$(echo "$topic" | sed "s|^${MQTT_BASE}/switch/${DEVICE_FORMATTED}/\(${DEVICE_FORMATTED}_[^/]*\)/set|\1|")
-                publish_mqtt "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/${network_id}/error" "Invalid message format: $message" "retain"
+        # Processament especial per als missatges del botó
+        if echo "$topic" | grep -q "^${MQTT_BASE}/button/"; then
+            if [ "$message" = "REBOOT" ]; then
+                process_message "$topic" "$message"
+            else
+                if echo "$topic" | grep -q "${MQTT_BASE}/button/${DEVICE_FORMATTED}/"; then
+                    button_id=$(echo "$topic" | sed "s|^${MQTT_BASE}/button/${DEVICE_FORMATTED}/\(${DEVICE_FORMATTED}_[^/]*\)/set|\1|")
+                    publish_mqtt "${MQTT_BASE}/button/${DEVICE_FORMATTED}/${button_id}/error" "Invalid message format: $message" "retain"
+                fi
+            fi
+        # Processament per als missatges dels interruptors WiFi
+        elif echo "$topic" | grep -q "^${MQTT_BASE}/switch/"; then
+            # Només processem el missatge si és vàlid (ON o OFF)
+            if echo "$message" | grep -q -E "^(ON|OFF)$"; then
+                process_message "$topic" "$message"
+            else
+                # Identifiquem el device ID per enviar l'error
+                if echo "$topic" | grep -q "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/"; then
+                    network_id=$(echo "$topic" | sed "s|^${MQTT_BASE}/switch/${DEVICE_FORMATTED}/\(${DEVICE_FORMATTED}_[^/]*\)/set|\1|")
+                    publish_mqtt "${MQTT_BASE}/switch/${DEVICE_FORMATTED}/${network_id}/error" "Invalid message format: $message" "retain"
+                fi
             fi
         fi
     done
