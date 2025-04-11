@@ -1,11 +1,11 @@
 #!/bin/sh
 
 DEBUG_MODE=0
-VERSION="1.0.99"
+VERSION="1.0.100"
 PID_FILE="/var/run/openwrt2ha.pid"
 # Get day of the week
 DAY_OF_WEEK=$(date +%u)
-LOG_FILE="/var/log/openwrt2ha/openwrt2ha-${DAY_OF_WEEK}.log"
+LOG_FILE="/var/log/openwrt2ha-${DAY_OF_WEEK}.log"
 ENV_FILE=/etc/openwrt2ha/.openwrt2ha.env
 # timeout in seconds
 MSG_TIMEOUT=5
@@ -225,7 +225,7 @@ setup_discovery_for_network() {
         "unique_id": "'${DEVICE_FORMATTED}'_'${ssid_formatted}'_wifi",
         "device": {
             "identifiers": ["'$DEVICE_FORMATTED'"],
-            "name": "'$HA_NAME'-'$VERSION'",
+            "name": "'$HA_NAME'",
             "model": "OpenWRT WiFi Control",
             "manufacturer": "OpenWRT"
         }
@@ -258,7 +258,7 @@ setup_discovery_for_reboot_button() {
         "unique_id": "'${DEVICE_FORMATTED}'_'${button_id}'_button",
         "device": {
             "identifiers": ["'$DEVICE_FORMATTED'"],
-            "name": "'$HA_NAME'-'$VERSION'",
+            "name": "'$HA_NAME'",
             "model": "OpenWRT Control",
             "manufacturer": "OpenWRT"
         }
